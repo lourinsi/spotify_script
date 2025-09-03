@@ -18,37 +18,16 @@ playlists = {
     '1': {"name": "NAS LEGENDS", "id": "0QmeNTNpmXCMYMnfUElIqb"},
     '2': {"name": "NAS ELITE", "id": "7EYdQbtIwnVFUbIOOva0HI"},
     '3': {"name": "NAS SUPERSTARS", "id": "0VU5Mk2VKp80eBK8iB7ROZ"},
-    '4': {"name": "NAS ALL STARS", "id": "1agpv6FCGMrvhw27myRJ1s"},
+    '4': {"name": "NAS ALL-STARS", "id": "1agpv6FCGMrvhw27myRJ1s"},
     '5': {"name": "NAS", "id": "7aJOhDOlQVCITOCnV7XWpZ"},
     '6': {"name": "NAS PRO", "id": "5TCao2OVhZGrShZM2zsMLq"},
     '7': {"name": "NAS 101", "id": "6pUo5Yekpi89jNpJ4hDcqz"},
+    '0': {"name": "End Script", "id": None}
 }
 
-while True:
-    print("Please choose a playlist by entering its number:")
-    for num, pl in playlists.items():
-        print(f"  {num} - {pl['name']}")
-    
-    choice = input("Enter your choice (1-7): ")
-    
-    if choice in playlists:
-        selected_playlist = playlists[choice]
-        playlist_name = selected_playlist["name"]
-        playlist_id = selected_playlist["id"]
-        print(f"✅ You have selected to play: {playlist_name}")
-        break
-    else:
-        print("❌ Invalid choice. Please enter a number from 1 to 7.")
+# Correct Spotify URLs
+SPOTIFY_WEB_PLAYER_URL = "https://open.spotify.com"
 
-# --- The rest of your script follows below this line, unchanged ---
-# playlist_name = "NAS 101" # This line would be replaced
-# playlist_id = "6pUo5Yekpi89jNpJ4hDcqz" # This line would be replaced
-
-SPOTIFY_PLAYLIST_URL = f"https://open.spotify.com/playlist/{playlist_id}"
-SPOTIFY_WEB_PLAYER_URL = "https://open.spotify.com/"
-SPOTIFY_LOGIN_PAGE_URL = "https://accounts.spotify.com/en/login"
-
-playlist_uri = f"spotify:playlist:{playlist_id}"
 nas_util_url = "https://spotifyfollow.a2hosted.com/nas"
 nas_login_url = "https://spotifyfollow.a2hosted.com/nas/login"
 
@@ -67,7 +46,11 @@ profiles = [
 ]
 
 summary = {}
-active_drivers = [] # List to hold all active driver instances
+active_drivers = {} # Using a dictionary to map profile folders to driver instances
+selected_playlist = None
+playlist_name = ""
+playlist_id = ""
+
 
 def try_click(driver, selector, by=By.CSS_SELECTOR, label="", max_tries=2, delay=1.5):
     """
@@ -101,6 +84,7 @@ def click_with_retries(driver, element, max_attempts=3, delay=1):
             print(f"Click attempt {i+1} failed: {e}")
             time.sleep(delay)
     return False
+
 def is_spotify_logged_in(driver, timeout=10):
     print("🔄 Checking Spotify login status...")
 
@@ -119,17 +103,16 @@ def is_spotify_logged_in(driver, timeout=10):
 
     for attempt in range(1, 4):
         print(f"🔄 Attempt {attempt}: Looking for both logged-in and logged-out indicators...")
-        
+
         # --- Check for Logged-In Indicators ---
         for by, selector in logged_in_indicators:
             try:
-                # Use a shorter wait time here, as we're also checking for logged-out state
                 WebDriverWait(driver, 5).until(EC.visibility_of_element_located((by, selector)))
                 print(f"✅ Found logged-in indicator: {selector}. User is logged in.")
                 return True
             except TimeoutException:
                 pass  # Keep going if not found
-        
+
         # --- Check for Logged-Out Indicators ---
         for by, selector in logged_out_indicators:
             try:
@@ -138,51 +121,150 @@ def is_spotify_logged_in(driver, timeout=10):
                 return False
             except TimeoutException:
                 pass  # Keep going if not found
-        
-        # If neither was found after checking all selectors, the page may still be loading.
+
+        # If neither was found after checking all selectors, close the tab and open a new one
         if attempt < 3:
-            print(f"❓ Could not find a definitive login/logout indicator. Refreshing page for attempt {attempt + 1}...")
-            driver.refresh()
-            time.sleep(5)
-    
+            print(f"❓ Could not find a definitive login/logout indicator. Closing and reopening Spotify page for attempt {attempt + 1}...")
+            # Get the current window handle
+            original_tab = driver.current_window_handle
+            
+            # Open a new tab
+            driver.execute_script("window.open('');")
+            time.sleep(1) # Give it a moment to open
+            
+            # Switch to the new tab and navigate to Spotify
+            new_tab = driver.window_handles[-1]
+            driver.switch_to.window(new_tab)
+            driver.get('https://open.spotify.com/')
+            
+            # Close the old tab
+            driver.switch_to.window(original_tab)
+            driver.close()
+            
+            # Switch back to the new tab for the next iteration
+            driver.switch_to.window(new_tab)
+            time.sleep(5)  # Wait for the new page to load
+            
     # If all attempts fail
     print("❌ Failed to definitively determine login status after 3 attempts. Defaulting to NOT logged in for safety.")
     return False
 
 # --- Main Automation Loop ---
-for profile in profiles:
-    folder = profile["folder"]
-    profile_email = profile["email"]  # Use a general name as it can be Google or Facebook email
-    facebook_password = profile.get("fb_password")
-    spotify_password = profile.get("spotify_password")  # This will be None for Profile 1 and 5-8 now.
+while True:
+    print("\n--- 🎶 Playlist Selection ---")
+    print("Please choose a playlist by entering its number:")
+    for num, pl in playlists.items():
+        print(f"   {num} - {pl['name']}")
+    
+    choice = input("Enter your choice (0-7): ")
+    
+    if choice == '0':
+        print("✅ Ending script as requested. Closing all open browsers.")
+        break # Exit the main while loop
+    
+    if choice in playlists:
+        selected_playlist = playlists[choice]
+        playlist_name = selected_playlist["name"]
+        playlist_id = selected_playlist["id"]
+        playlist_uri = f"spotify:playlist:{playlist_id}"
+        print(f"✅ You have selected to play: {playlist_name}")
+    else:
+        print("❌ Invalid choice. Please enter a number from 0 to 7.")
+        continue # Skip to the next iteration of the while loop
 
-    print(f"\n=== 🚀 Launching {folder} ===")
-    summary[folder] = "❌ Fail"
+    # --- Profile Processing ---
+    for profile in profiles:
+        folder = profile["folder"]
+        profile_email = profile["email"]
+        facebook_password = profile.get("fb_password")
+        spotify_password = profile.get("spotify_password")
 
-    user_data_dir = f"{base_profile_dir}\\{folder}"
-    options = Options()
-    options.binary_location = brave_path
-    options.add_argument(f'--user-data-dir={user_data_dir}')
-    options.add_argument("--mute-audio")
-    options.add_argument("--start-maximized")
+        print(f"\n=== 🚀 Processing {folder} ===")
+        summary[folder] = "❌ Fail"
 
-    driver = None
+        # Check if a driver for this profile is already open
+        if folder in active_drivers:
+            driver = active_drivers[folder]
+            print(f"✅ Found existing Brave browser for {folder}.")
+        else:
+            # Launch a new Brave browser for this profile
+            print(f"🔄 Launching a new Brave browser for {folder}...")
+            user_data_dir = f"{base_profile_dir}\\{folder}"
+            options = Options()
+            options.binary_location = brave_path
+            options.add_argument(f'--user-data-dir={user_data_dir}')
+            options.add_argument("--mute-audio")
+            options.add_argument("--start-maximized")
 
-    try:
-        service = Service(chromedriver_path)
-        driver = webdriver.Chrome(service=service, options=options)
-        active_drivers.append(driver)
+            try:
+                service = Service(chromedriver_path)
+                # Adding a timeout for the service
+                service.start()
+                driver = webdriver.Chrome(service=service, options=options)
+                active_drivers[folder] = driver
+            except WebDriverException as e:
+                print(f"❌ Cannot launch {folder} — profile may be in use or corrupted. Error: {e}")
+                continue # Skip to next profile
+            except Exception as e:
+                print(f"❌ Unexpected error in {folder}: {e}")
+                continue # Skip to next profile
 
-        print("🧹 Closing all extra tabs (except initial blank tab if present)...")
-        initial_window_handle = driver.window_handles[0]
+        # --- Handle tabs and switch to the correct ones ---
+        main_spotify_tab = None
+        nas_tab = None
+        
+        # New approach: Iterate through existing windows to find the tabs
         for handle in driver.window_handles:
-            if handle != initial_window_handle:
-                driver.switch_to.window(handle)
-                driver.close()
-        driver.switch_to.window(initial_window_handle)
-        main_spotify_tab = initial_window_handle
-        initial_window_count = len(driver.window_handles)
+            driver.switch_to.window(handle)
+            current_url = driver.current_url
+            if "open.spotify.com" in current_url or "play.spotify.com" in current_url:
+                print(f"✅ Found existing Spotify tab.")
+                main_spotify_tab = handle
+            elif "spotifyfollow.a2hosted.com/nas" in current_url:
+                print(f"✅ Found existing NAS tab.")
+                nas_tab = handle
 
+        # If Spotify tab wasn't found, open it with retries
+        if not main_spotify_tab:
+            print(f"🔄 No Spotify tab found. Opening a new one...")
+            
+            # Use a retry loop for creating a new tab
+            for attempt in range(1, 4):
+                try:
+                    driver.switch_to.window(driver.window_handles[0])  # Switch to a known handle
+                    driver.execute_script(f"window.open('{SPOTIFY_WEB_PLAYER_URL}', '_blank');")
+                    
+                    # Wait for the new window to be present
+                    WebDriverWait(driver, 20).until(EC.number_of_windows_to_be(len(driver.window_handles) + 1))
+                    
+                    # Switch to the new tab
+                    new_tab_handle = driver.window_handles[-1]
+                    driver.switch_to.window(new_tab_handle)
+                    
+                    # Validate the URL of the new tab
+                    WebDriverWait(driver, 10).until(EC.url_contains("spotify.com"))
+                    main_spotify_tab = new_tab_handle
+                    print(f"✅ Opened new Spotify tab successfully on attempt {attempt}.")
+                    break # Exit the retry loop on success
+                
+                except TimeoutException:
+                    print(f"[{folder}] ❌ TimeoutException: Failed to open new Spotify tab on attempt {attempt}. Retrying...")
+                    if attempt == 3:
+                        print(f"[{folder}] ❌ All attempts to open a new Spotify tab failed. Skipping to the next profile.")
+                        summary[folder] = "❌ Fail - Tab Blocked"
+                        continue # This will skip the rest of the code for this profile and move to the next profile in the loop.
+            else:
+                # This 'else' block runs if the for loop completes without a 'break'
+                # which means all 3 attempts failed. The continue statement above handles this.
+                continue
+
+        # If we successfully found or opened a tab, switch to it and proceed
+        if main_spotify_tab:
+            driver.switch_to.window(main_spotify_tab)
+        else:
+            # If after all retries we still don't have a Spotify tab, skip
+            continue
+        
         # --- Spotify Login & Playback Block ---
         play_success = False
         for attempt in range(1, 4):  # Overall retry loop for Spotify login & playback
@@ -221,6 +303,8 @@ for profile in profiles:
 
             if not is_spotify_logged_in(driver):
                 print(f"[{folder}] 🔐 Spotify is NOT logged in. Initiating login process...")
+                
+                # ... (The login logic remains the same, but now it's inside this new loop structure) ...
                 
                 login_initiated = False
                 for login_btn_try in range(max_page_load_attempts):
@@ -266,24 +350,52 @@ for profile in profiles:
                         continue  # Move to next overall attempt
 
                 # Logic for Profiles 5-8: Facebook Login ONLY
-                elif facebook_password:  # This now applies specifically to Profiles 5-8 based on their configuration
+                elif facebook_password:
                     print(f"[{folder}] Attempting to log in via Facebook.")
                     facebook_login_successful_this_try = False
+                    
                     for fb_try in range(max_page_load_attempts):
                         if try_click(driver, 'button[data-testid="facebook-login"]', label="Continue with Facebook Button"):
+                            print(f"[{folder}] ✅ Clicked 'Continue with Facebook' button. Waiting for page load and 'Continue as' button...")
                             time.sleep(5)
-                            # Handle potential Facebook permission pop-up if it's the first time
-                            try_click(driver, 'div[role="button"][aria-label^="Continue as"]', label="Continue as (Facebook)")
-                            time.sleep(5)
-                            if is_spotify_logged_in(driver):
-                                print(f"[{folder}] ✅ Successfully logged into Spotify via Facebook.")
-                                facebook_login_successful_this_try = True
-                                break  # Exit fb_try loop
-                            else:
-                                print(f"[{folder}] ❌ Spotify login via Facebook failed or did not complete after re-check (attempt {fb_try + 1}). Current URL: {driver.current_url}. Refreshing to retry.")
-                                driver.save_screenshot(f"debug_spotify_facebook_login_failed_{folder}_{int(time.time())}_try{fb_try}.png")  # Screenshot on failure
+                            
+                            
+                            # Wait for the "Continue as" button to appear before checking the URL
+                            try:
+                                continue_as_button = WebDriverWait(driver, 10).until(
+                                    EC.element_to_be_clickable((By.CSS_SELECTOR, 'div[role="button"][aria-label^="Continue as"]'))
+                                )
+                                print(f"[{folder}] ✅ 'Continue as' button found.")
+                                continue_as_button.click()
+                                print(f"[{folder}] ✅ Clicked 'Continue as' button. Waiting for Spotify redirect...")
+                                time.sleep(5)
+
+                                if is_spotify_logged_in(driver):
+                                    print(f"[{folder}] ✅ Successfully logged into Spotify via Facebook.")
+                                    facebook_login_successful_this_try = True
+                                    break
+                                else:
+                                    print(f"[{folder}] ❌ Spotify login via Facebook failed or did not complete after re-check (attempt {fb_try + 1}). Current URL: {driver.current_url}. Refreshing to retry.")
+                                    driver.save_screenshot(f"debug_spotify_facebook_login_failed_{folder}_{int(time.time())}_try{fb_try}.png")
+                                    driver.refresh()
+                                    time.sleep(5)
+
+                            except TimeoutException:
+                                print(f"[{folder}] ❌ 'Continue as' button did not appear within timeout. This may indicate a live Facebook login page or a different issue. Current URL: {driver.current_url}. Refreshing to retry.")
+                                driver.save_screenshot(f"debug_spotify_facebook_continue_as_missing_{folder}_{int(time.time())}_try{fb_try}.png")
                                 driver.refresh()
                                 time.sleep(5)
+                                continue
+
+                            # === START OF NEW LOGIC ===
+                            # Check if the page is a live Facebook login page (which indicates a problem)
+                            if "facebook.com" in driver.current_url:
+                                print(f"[{folder}] ⚠️ Detected a redirect to facebook.com. This profile needs manual attention or a different login approach.")
+                                print(f"[{folder}] ❌ Skipping to the next profile.")
+                                facebook_login_successful_this_try = False
+                                break
+                            
+                            # === END OF NEW LOGIC ===
                         else:
                             print(f"[{folder}] ❌ 'Continue with Facebook' button not found on login page (attempt {fb_try + 1}). Refreshing to retry.")
                             driver.refresh()
@@ -294,21 +406,12 @@ for profile in profiles:
                         continue  # Move to next overall attempt
 
                 else:  # Fallback if neither Google (for P1) nor Facebook (for P5-8) login initiated successfully
-                    print(f"[{folder}] ❌ No specific login method (Google for Profile 1 or Facebook for others) was successfully initiated for Spotify. Current URL: {driver.current_url}. Retrying overall attempt.")
+                    print(f"[{folder}] ❌ No specific login method was successfully initiated for Spotify. Current URL: {driver.current_url}. Retrying overall attempt.")
                     driver.save_screenshot(f"debug_spotify_login_method_missing_{folder}_{int(time.time())}.png")
                     continue  # Move to the next overall playback attempt
-            else:  # Already logged in
+            else:
                 print("✅ Already logged into Spotify. Proceeding with playlist playback.")
             
-            # Now, ensure we are on the playlist URL after login or if already logged in
-            print(f"[{folder}] Navigating directly to playlist URL: {SPOTIFY_PLAYLIST_URL}")
-            driver.get(SPOTIFY_PLAYLIST_URL)
-            time.sleep(5) # Give the page a moment to load
-            
-            # The script is already on the correct playlist page.
-            # No need to search for the playlist link again.
-            # We can proceed directly to attempting playback.
-
             # --- Spotify Playback ---
             search_found = False
             for refresh_attempt in range(3):
@@ -354,10 +457,8 @@ for profile in profiles:
                         print(f"⚠️ URL mismatch! Expected URI '{playlist_uri}' not in current URL '{current_url}'.")
                         print("❌ Double-click failed to navigate to the correct playlist page. Retrying the search and click...")
                         
-                        # Re-run the search process if the URL is wrong
                         driver.refresh()
                         time.sleep(5)
-                        # Re-execute the search part of the loop
                         continue
                     
                     print(f"✅ URL confirmed: '{current_url}' contains playlist URI.")
@@ -369,8 +470,8 @@ for profile in profiles:
                     break
                 except Exception as e:
                     print(f"⏱️ Playback not confirmed after double-click {dbl + 1}. Error: {e}")
-                    print(f"     Details: {e}")
-                    if dbl < 2: # Only refresh if not the last attempt
+                    print(f"    Details: {e}")
+                    if dbl < 2:
                         print("🔄 Refreshing page before next playback attempt...")
                         driver.refresh()
                         time.sleep(5)
@@ -379,33 +480,38 @@ for profile in profiles:
 
             if not playback_attempt_successful:
                 print(f"[{folder}] ❌ Playback failed after all attempts. Moving to next overall attempt.")
-                continue # Move to the next overall playback attempt
-            
+                continue
+
             # --- Shuffle and Repeat buttons ---
             print(f"[{folder}] Attempting to enable shuffle and repeat...")
-            # Click Shuffle button
             if try_click(driver, 'button[data-testid="control-button-shuffle"][aria-checked="false"]', label="Shuffle button"):
                 print(f"[{folder}] ✅ Shuffle enabled.")
             else:
                 print(f"[{folder}] ⚠️ Shuffle button not found or already enabled/not clickable.")
-            time.sleep(1)  # Small delay
+            time.sleep(1)
 
-            # Click Repeat button
             if try_click(driver, 'button[data-testid="control-button-repeat"][aria-checked="false"]', label="Repeat button"):
                 print(f"[{folder}] ✅ Repeat enabled.")
             else:
                 print(f"[{folder}] ⚠️ Repeat button not found or already enabled/not clickable.")
-            time.sleep(2)  # Small delay after trying repeat
+            time.sleep(2)
 
             # --- NAS Submit Block ---
-            summary[folder] = "✅ Success"  # Assume success up to this point, NAS is final step.
+            summary[folder] = "✅ Success"
             print("🌐 NAS Submit...")
+            
+            # Switch to NAS tab or open a new one
+            if not nas_tab:
+                # If NAS tab wasn't found, open it
+                driver.execute_script(f"window.open('{nas_login_url}', '_blank');")
+                WebDriverWait(driver, 20).until(EC.number_of_windows_to_be(len(driver.window_handles)))
+                driver.switch_to.window(driver.window_handles[-1])
+                nas_tab = driver.current_window_handle
+                print(f"🔄 Opened new NAS tab.")
+            else:
+                driver.switch_to.window(nas_tab)
+                print(f"✅ Switched to existing NAS tab.")
 
-            driver.execute_script(f"window.open('{nas_login_url}', '_blank');")
-            print(f"[{folder}] Waiting for new NAS tab to open (expected window count: {initial_window_count + 1})...")
-            WebDriverWait(driver, 20).until(EC.number_of_windows_to_be(initial_window_count + 1))
-            driver.switch_to.window(driver.window_handles[-1])
-            print(f"[{folder}] ✅ Switched to new NAS tab: {driver.current_url}")
             time.sleep(5)
 
             nas_success = False
@@ -500,34 +606,18 @@ for profile in profiles:
                 print(f"[{folder}] ❌ NAS operations failed after all {nas_attempt} attempts.")
             
             print(f"[{folder}] ⚠️ NAS tab left open for manual inspection: {driver.current_url}")
-            break  # Exit the Spotify attempt loop if playback and NAS were successful
-
-        # This block is only reached if the overall 'attempt' loop for Spotify/playback did NOT break early
-        if not play_success:  # If the entire Spotify login/playback process failed after all attempts
+            play_success = True
+            break
+        
+        if not play_success:
             print(f"🚫 All Spotify login and playback attempts failed for {folder}. Moving to next profile.")
 
         print(f"✅ {folder} finished. Brave browser for this profile remains open.\n{'-'*60}")
-
-    except WebDriverException as e:
-        print(f"❌ Cannot launch {folder} — profile may be in use or corrupted. Error: {e}")
-    except Exception as e:
-        print(f"❌ Unexpected error in {folder}: {e}")
-        if driver and driver not in active_drivers:
-            active_drivers.append(driver)
-# === FINAL CLEANUP (after all profiles are processed) ===
-print("\n=== ✅ All Profiles Processed ===")
-print("All Brave browser windows will remain open until you press Enter.")
-input("Press Enter to close all opened Brave browser windows and exit the script...\n")
-
-for driver_instance in active_drivers:
-    try:
-        driver_instance.quit()
-        print(f"✅ Closed a Brave browser instance.")
-    except Exception as e:
-        print(f"❌ Error closing a Brave browser instance: {e}")
-
-# === SUMMARY ===
-print("\n=== ✅ Final Summary ===")
-for profile in profiles:
-    status = summary.get(profile["folder"], "N/A - Not Processed")
-    print(f"{profile['folder']}: {status}")
+        
+# === FINAL SUMMARY ===
+print("\n" + "="*60)
+print("=== SCRIPT FINISHED ===")
+print("=== RUN SUMMARY ===")
+for folder, status in summary.items():
+    print(f"  [{folder}]: {status}")
+print("="*60)
