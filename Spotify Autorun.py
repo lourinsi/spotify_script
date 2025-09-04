@@ -149,6 +149,7 @@ def is_spotify_logged_in(driver, timeout=10):
 
 # --- Main Automation Loop ---
 while True:
+    print("🔔 Profiles 5-8")
     print("\n--- 🎶 Playlist Selection ---")
     print("Please choose a playlist by entering its number:")
     for num, pl in playlists.items():
