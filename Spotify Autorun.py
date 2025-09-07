@@ -483,18 +483,40 @@ while True:
                     driver.get(nas_login_url)
             time.sleep(5)
 
-            # --- Always check for NAS login button and click if present ---
+            # --- Check if already logged in by looking for welcome message ---
             try:
-                login_btn = WebDriverWait(driver, 5).until(
-                    EC.presence_of_element_located((By.CSS_SELECTOR, 'a#loginButton.btn.btn-primary'))
+                welcome_element = WebDriverWait(driver, 5).until(
+                    EC.presence_of_element_located((By.XPATH, '//h3[@id="results1" and contains(text(), "Welcome")]'))
                 )
-                print(f"[{folder}] ✅ NAS Login button found, clicking...")
-                click_with_retries(driver, login_btn)
-                time.sleep(10)  # Wait for login process
+                print(f"[{folder}] ✅ Welcome message found. User is already logged in. Skipping login button click.")
             except TimeoutException:
-                print(f"[{folder}] ℹ️ NAS Login button not found, continuing with submit.")
+                print(f"[{folder}] ℹ️ Welcome message not found. Checking for NAS login button...")
+                # --- Check for NAS login button and click if present ---
+                try:
+                    login_btn = WebDriverWait(driver, 5).until(
+                        EC.presence_of_element_located((By.CSS_SELECTOR, 'a#loginButton.btn.btn-primary'))
+                    )
+                    print(f"[{folder}] ✅ NAS Login button found, clicking...")
+                    click_with_retries(driver, login_btn)
+                    time.sleep(10)  # Wait for login process
+                except TimeoutException:
+                    print(f"[{folder}] ℹ️ NAS Login button not found, continuing with submit.")
+                except Exception as e:
+                    print(f"[{folder}] ❌ Error checking/clicking NAS Login button: {e}")
             except Exception as e:
-                print(f"[{folder}] ❌ Error checking/clicking NAS Login button: {e}")
+                print(f"[{folder}] ❌ Error checking for welcome message: {e}. Proceeding with login button check...")
+                # --- Check for NAS login button and click if present ---
+                try:
+                    login_btn = WebDriverWait(driver, 5).until(
+                        EC.presence_of_element_located((By.CSS_SELECTOR, 'a#loginButton.btn.btn-primary'))
+                    )
+                    print(f"[{folder}] ✅ NAS Login button found, clicking...")
+                    click_with_retries(driver, login_btn)
+                    time.sleep(10)  # Wait for login process
+                except TimeoutException:
+                    print(f"[{folder}] ℹ️ NAS Login button not found, continuing with submit.")
+                except Exception as e:
+                    print(f"[{folder}] ❌ Error checking/clicking NAS Login button: {e}")
 
             nas_success = False
             for nas_attempt in range(1, 4):
