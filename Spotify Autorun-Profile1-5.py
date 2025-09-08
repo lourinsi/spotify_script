@@ -38,6 +38,9 @@ max_page_load_attempts = 3 # Number of attempts for critical page loads/interact
 profiles = [
     # Profile 1: Only Google Login for Spotify
     {"folder": "Profile 1", "email": "jamesjack2323g@gmail.com", "name": "James Jack", "spotify_password": None, "fb_password": None},
+    {"folder": "Profile 2", "email": "jamesonjcks@gmail.com", "name": "Jameson Jack", "spotify_password": None, "fb_password": None},
+    {"folder": "Profile 3", "email": "jamesyjacky@gmail.com", "name": "Jamesy Jack", "spotify_password": None, "fb_password": None},
+    {"folder": "Profile 4", "email": "jamjackthegoat@gmail.com ", "name": "Jam Jack", "spotify_password": None, "fb_password": None},
 ]
 
 summary = {}
