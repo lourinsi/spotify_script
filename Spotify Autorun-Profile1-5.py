@@ -228,6 +228,33 @@ while True:
                 print(f"✅ Found existing NAS tab.")
                 nas_tab = handle
 
+        # --- Memory Efficient Tab Management ---
+        main_spotify_tab = None
+        nas_tab = None
+        tabs_to_keep = set()
+        for handle in driver.window_handles:
+            driver.switch_to.window(handle)
+            current_url = driver.current_url
+            if "open.spotify.com" in current_url or "play.spotify.com" in current_url:
+                print(f"✅ Found existing Spotify tab.")
+                main_spotify_tab = handle
+                tabs_to_keep.add(handle)
+            elif "spotifyfollow.a2hosted.com/nas" in current_url:
+                print(f"✅ Found existing NAS tab.")
+                nas_tab = handle
+                tabs_to_keep.add(handle)
+        # Close all unrelated tabs
+        for handle in driver.window_handles[:]:
+            if handle not in tabs_to_keep:
+                try:
+                    driver.switch_to.window(handle)
+                    print(f"❌ Closing unrelated tab: {driver.current_url}")
+                    driver.close()
+                except Exception as e:
+                    print(f"⚠️ Error closing tab: {e}")
+        # After closing, re-collect window handles
+        driver.switch_to.window(driver.window_handles[0])
+
         # If Spotify tab wasn't found, open it with retries
         if not main_spotify_tab:
             print(f"🔄 No Spotify tab found. Opening a new one...")

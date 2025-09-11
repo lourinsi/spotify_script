@@ -204,7 +204,6 @@ while True:
 
             try:
                 service = Service(chromedriver_path)
-                # Adding a timeout for the service
                 service.start()
                 driver = webdriver.Chrome(service=service, options=options)
                 active_drivers[folder] = driver
@@ -215,61 +214,88 @@ while True:
                 print(f"❌ Unexpected error in {folder}: {e}")
                 continue # Skip to next profile
 
-        # --- Handle tabs and switch to the correct ones ---
+        # --- Memory Efficient Tab Management ---
         main_spotify_tab = None
         nas_tab = None
-        
-        # New approach: Iterate through existing windows to find the tabs
+        tabs_to_keep = set()
         for handle in driver.window_handles:
             driver.switch_to.window(handle)
             current_url = driver.current_url
             if "open.spotify.com" in current_url or "play.spotify.com" in current_url:
                 print(f"✅ Found existing Spotify tab.")
                 main_spotify_tab = handle
+                tabs_to_keep.add(handle)
             elif "spotifyfollow.a2hosted.com/nas" in current_url:
                 print(f"✅ Found existing NAS tab.")
                 nas_tab = handle
-
-        # If Spotify tab wasn't found, open it with retries
-        if not main_spotify_tab:
-            print(f"🔄 No Spotify tab found. Opening a new one...")
-            
-            # Use a retry loop for creating a new tab
-            for attempt in range(1, 4):
+                tabs_to_keep.add(handle)
+        # Close all unrelated tabs
+        for handle in driver.window_handles[:]:
+            if handle not in tabs_to_keep:
                 try:
-                    driver.switch_to.window(driver.window_handles[0])  # Switch to a known handle
-                    driver.execute_script(f"window.open('{SPOTIFY_WEB_PLAYER_URL}', '_blank');")
-                    
-                    # Wait for the new window to be present
-                    WebDriverWait(driver, 20).until(EC.number_of_windows_to_be(len(driver.window_handles) + 1))
-                    
-                    # Switch to the new tab
-                    new_tab_handle = driver.window_handles[-1]
-                    driver.switch_to.window(new_tab_handle)
-                    
-                    # Validate the URL of the new tab
-                    WebDriverWait(driver, 10).until(EC.url_contains("spotify.com"))
-                    main_spotify_tab = new_tab_handle
-                    print(f"✅ Opened new Spotify tab successfully on attempt {attempt}.")
-                    break # Exit the retry loop on success
-                
-                except TimeoutException:
-                    print(f"[{folder}] ❌ TimeoutException: Failed to open new Spotify tab on attempt {attempt}. Retrying...")
-                    if attempt == 3:
-                        print(f"[{folder}] ❌ All attempts to open a new Spotify tab failed. Skipping to the next profile.")
-                        summary[folder] = "❌ Fail - Tab Blocked"
-                        continue # This will skip the rest of the code for this profile and move to the next profile in the loop.
-            else:
-                # This 'else' block runs if the for loop completes without a 'break'
-                # which means all 3 attempts failed. The continue statement above handles this.
-                continue
+                    driver.switch_to.window(handle)
+                    print(f"❌ Closing unrelated tab: {driver.current_url}")
+                    driver.close()
+                except Exception as e:
+                    print(f"⚠️ Error closing tab: {e}")
+        # After closing, re-collect window handles
+        driver.switch_to.window(driver.window_handles[0])
 
-        # If we successfully found or opened a tab, switch to it and proceed
-        if main_spotify_tab:
-            driver.switch_to.window(main_spotify_tab)
-        else:
-            # If after all retries we still don't have a Spotify tab, skip
-            continue
+        # --- Handle tabs and switch to the correct ones ---
+        # main_spotify_tab = None
+        # nas_tab = None
+        
+        # # New approach: Iterate through existing windows to find the tabs
+        # for handle in driver.window_handles:
+        #     driver.switch_to.window(handle)
+        #     current_url = driver.current_url
+        #     if "open.spotify.com" in current_url or "play.spotify.com" in current_url:
+        #         print(f"✅ Found existing Spotify tab.")
+        #         main_spotify_tab = handle
+        #     elif "spotifyfollow.a2hosted.com/nas" in current_url:
+        #         print(f"✅ Found existing NAS tab.")
+        #         nas_tab = handle
+
+        # # If Spotify tab wasn't found, open it with retries
+        # if not main_spotify_tab:
+        #     print(f"🔄 No Spotify tab found. Opening a new one...")
+            
+        #     # Use a retry loop for creating a new tab
+        #     for attempt in range(1, 4):
+        #         try:
+        #             driver.switch_to.window(driver.window_handles[0])  # Switch to a known handle
+        #             driver.execute_script(f"window.open('{SPOTIFY_WEB_PLAYER_URL}', '_blank');")
+                    
+        #             # Wait for the new window to be present
+        #             WebDriverWait(driver, 20).until(EC.number_of_windows_to_be(len(driver.window_handles) + 1))
+                    
+        #             # Switch to the new tab
+        #             new_tab_handle = driver.window_handles[-1]
+        #             driver.switch_to.window(new_tab_handle)
+                    
+        #             # Validate the URL of the new tab
+        #             WebDriverWait(driver, 10).until(EC.url_contains("spotify.com"))
+        #             main_spotify_tab = new_tab_handle
+        #             print(f"✅ Opened new Spotify tab successfully on attempt {attempt}.")
+        #             break # Exit the retry loop on success
+                
+        #         except TimeoutException:
+        #             print(f"[{folder}] ❌ TimeoutException: Failed to open new Spotify tab on attempt {attempt}. Retrying...")
+        #             if attempt == 3:
+        #                 print(f"[{folder}] ❌ All attempts to open a new Spotify tab failed. Skipping to the next profile.")
+        #                 summary[folder] = "❌ Fail - Tab Blocked"
+        #                 continue # This will skip the rest of the code for this profile and move to the next profile in the loop.
+        #     else:
+        #         # This 'else' block runs if the for loop completes without a 'break'
+        #         # which means all 3 attempts failed. The continue statement above handles this.
+        #         continue
+
+        # # If we successfully found or opened a tab, switch to it and proceed
+        # if main_spotify_tab:
+        #     driver.switch_to.window(main_spotify_tab)
+        # else:
+        #     # If after all retries we still don't have a Spotify tab, skip
+        #     continue
         
         # --- Spotify Login & Playback Block ---
         play_success = False
