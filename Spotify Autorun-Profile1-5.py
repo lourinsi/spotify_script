@@ -618,6 +618,13 @@ while True:
 
             if nas_success:
                 print(f"[{folder}] ✅ NAS operations completed successfully.")
+                # Switch to Spotify tab after NAS operations
+                if main_spotify_tab is not None:
+                    try:
+                        driver.switch_to.window(main_spotify_tab)
+                        print(f"[{folder}] 🔄 Switched to Spotify tab after NAS operations.")
+                    except Exception as e:
+                        print(f"[{folder}] ⚠️ Could not switch to Spotify tab: {e}")
             else:
                 print(f"[{folder}] ❌ NAS operations failed after all {nas_attempt} attempts.")
 
