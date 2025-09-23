@@ -229,7 +229,7 @@ while True:
                 print(f"✅ Found existing NAS tab.")
                 nas_tab = handle
                 tabs_to_keep.add(handle)
-        # Close all unrelated tabs
+        # Close all unrelated tabs (moved to start of profile loop)
         for handle in driver.window_handles[:]:
             if handle not in tabs_to_keep:
                 try:
@@ -357,7 +357,8 @@ while True:
                 facebook_login_successful_this_try = False
 
                 for fb_try in range(max_page_load_attempts):
-                    if try_click(driver, 'button[data-testid="facebook-login"]', label="Continue with Facebook Button"):
+                    # Use XPath to match the Facebook button by text and href
+                    if try_click(driver, '//a[contains(@href, "login/facebook") and contains(text(), "Continue with Facebook")]', by=By.XPATH, label="Continue with Facebook Button"):
                         print(f"[{folder}] ✅ Clicked 'Continue with Facebook' button. Waiting for page load and 'Continue as' button...")
                         time.sleep(5)
                         try:
@@ -407,7 +408,14 @@ while True:
             
             # --- Spotify Playback ---
             search_found = False
+            playback_attempt_successful = False
+            shuffle_successful = False
+            repeat_successful = False
+            skip_forward_successful = False
             for refresh_attempt in range(3):
+                if playback_attempt_successful:
+                    print("✅ Playback already confirmed, skipping playback block.")
+                    break
                 try:
                     time.sleep(3)
                     library_button = driver.find_elements(By.XPATH, '//button[@aria-label="Open Your Library"]')
@@ -418,76 +426,94 @@ while True:
                     else:
                         print(f"📂 'Your Library' already open or not found (attempt {refresh_attempt + 1}).")
 
-                    search = WebDriverWait(driver, 10).until(EC.presence_of_element_located(
-                        (By.CSS_SELECTOR, 'div[role="search"] input[role="searchbox"]')))
-                    search.clear()
-                    search.send_keys(playlist_name)
-                    print(f"🔎 Searching playlist: '{playlist_name}' (attempt {refresh_attempt + 1})...")
-                    time.sleep(2)
-                    search_found = True
-                    break
+                    if not search_found:
+                        search = WebDriverWait(driver, 10).until(EC.presence_of_element_located(
+                            (By.CSS_SELECTOR, 'div[role="search"] input[role="searchbox"]')))
+                        search.clear()
+                        search.send_keys(playlist_name)
+                        print(f"🔎 Searching playlist: '{playlist_name}' (attempt {refresh_attempt + 1})...")
+                        time.sleep(2)
+                        search_found = True
+                    # --- Double-click playlist logic ---
+                    for dbl in range(3):
+                        if playback_attempt_successful:
+                            print("✅ Playback already confirmed, skipping double-click block.")
+                            break
+                        try:
+                            sidebar_btn = WebDriverWait(driver, 12).until(EC.element_to_be_clickable(
+                                (By.CSS_SELECTOR, f'div[role="button"][aria-labelledby^="listrow-title-{playlist_uri}"]')))
+                            driver.execute_script("arguments[0].scrollIntoView({behavior:'smooth',block:'center'});", sidebar_btn)
+                            ActionChains(driver).double_click(sidebar_btn).perform()
+                            print(f"🖱️ Double-clicked playlist (attempt {dbl + 1})")
+                            time.sleep(4)
+                            current_url = driver.current_url
+                            if playlist_id not in current_url:
+                                print(f"⚠️ URL mismatch! Expected URI '{playlist_uri}' not in current URL '{current_url}'.")
+                                print("❌ Double-click failed to navigate to the correct playlist page. Retrying the search and click...")
+                                driver.refresh()
+                                time.sleep(5)
+                                continue
+                            print(f"✅ URL confirmed: '{current_url}' contains playlist URI.")
+                            WebDriverWait(driver, 12).until(EC.presence_of_element_located(
+                                (By.CSS_SELECTOR, 'button[data-testid="control-button-playpause"][aria-label="Pause"]')))
+                            print("✅ Playback confirmed.")
+                            playback_attempt_successful = True
+                            break
+                        except Exception as e:
+                            print(f"⏱️ Playback not confirmed after double-click {dbl + 1}. Error: {e}")
+                            print(f"    Details: {e}")
+                            if dbl < 2:
+                                print("🔄 Refreshing page before next playback attempt...")
+                                driver.refresh()
+                                time.sleep(5)
+                            time.sleep(2)
+                    if playback_attempt_successful:
+                        break  # Exit the search retry loop after successful playback
                 except Exception as e:
-                    print(f"🔄 Search input or library not ready (attempt {refresh_attempt + 1}) — refreshing. Error: {e}")
+                    print(f"� Search input or library not ready (attempt {refresh_attempt + 1}) — refreshing. Error: {e}")
                     driver.refresh()
                     time.sleep(5)
-
             if not search_found:
                 print("❌ Search input failed after 3 refresh attempts. Skipping playback attempt for this profile.")
                 continue # Move to next overall attempt
 
-            playback_attempt_successful = False
-            for dbl in range(3): # Try double-clicking playlist up to 3 times
-                try:
-                    sidebar_btn = WebDriverWait(driver, 12).until(EC.element_to_be_clickable(
-                        (By.CSS_SELECTOR, f'div[role="button"][aria-labelledby^="listrow-title-{playlist_uri}"]')))
-                    driver.execute_script("arguments[0].scrollIntoView({behavior:'smooth',block:'center'});", sidebar_btn)
-                    ActionChains(driver).double_click(sidebar_btn).perform()
-                    print(f"🖱️ Double-clicked playlist (attempt {dbl + 1})")
-                    time.sleep(4)
-                    
-                    current_url = driver.current_url
-                    if playlist_id not in current_url:
-                        print(f"⚠️ URL mismatch! Expected URI '{playlist_uri}' not in current URL '{current_url}'.")
-                        print("❌ Double-click failed to navigate to the correct playlist page. Retrying the search and click...")
-                        
-                        driver.refresh()
-                        time.sleep(5)
-                        continue
-                        
-                    print(f"✅ URL confirmed: '{current_url}' contains playlist URI.")
-
-                    WebDriverWait(driver, 12).until(EC.presence_of_element_located(
-                        (By.CSS_SELECTOR, 'button[data-testid="control-button-playpause"][aria-label="Pause"]')))
-                    print("✅ Playback confirmed.")
-                    playback_attempt_successful = True
-                    break
-                except Exception as e:
-                    print(f"⏱️ Playback not confirmed after double-click {dbl + 1}. Error: {e}")
-                    print(f"    Details: {e}")
-                    if dbl < 2:
-                        print("🔄 Refreshing page before next playback attempt...")
-                        driver.refresh()
-                        time.sleep(5)
-                    playback_attempt_successful = False
-                    time.sleep(2)
-
-            if not playback_attempt_successful:
-                print(f"[{folder}] ❌ Playback failed after all attempts. Moving to next overall attempt.")
-                continue
-
             # --- Shuffle and Repeat buttons ---
             print(f"[{folder}] Attempting to enable shuffle and repeat...")
-            if try_click(driver, 'button[data-testid="control-button-shuffle"][aria-checked="false"]', label="Shuffle button"):
-                print(f"[{folder}] ✅ Shuffle enabled.")
+            if not shuffle_successful:
+                if try_click(driver, 'button[data-testid="control-button-shuffle"][aria-checked="false"]', label="Shuffle button"):
+                    print(f"[{folder}] ✅ Shuffle enabled.")
+                    shuffle_successful = True
+                else:
+                    print(f"[{folder}] ⚠️ Shuffle button not found or already enabled/not clickable.")
+                time.sleep(1)
             else:
-                print(f"[{folder}] ⚠️ Shuffle button not found or already enabled/not clickable.")
-            time.sleep(1)
+                print(f"[{folder}] ✅ Shuffle already enabled, skipping shuffle block.")
 
-            if try_click(driver, 'button[data-testid="control-button-repeat"][aria-checked="false"]', label="Repeat button"):
-                print(f"[{folder}] ✅ Repeat enabled.")
+            if not repeat_successful:
+                if try_click(driver, 'button[data-testid="control-button-repeat"][aria-checked="false"]', label="Repeat button"):
+                    print(f"[{folder}] ✅ Repeat enabled.")
+                    repeat_successful = True
+                else:
+                    print(f"[{folder}] ⚠️ Repeat button not found or already enabled/not clickable.")
+                time.sleep(2)
             else:
-                print(f"[{folder}] ⚠️ Repeat button not found or already enabled/not clickable.")
-            time.sleep(2)
+                print(f"[{folder}] ✅ Repeat already enabled, skipping repeat block.")
+
+            # --- Skip Forward Button ---
+            print(f"[{folder}] Attempting to click skip forward...")
+            if not skip_forward_successful:
+                for attempt in range(3):
+                    if try_click(driver, 'button[data-testid="control-button-skip-forward"]', label="Skip Forward button"):
+                        print(f"[{folder}] ✅ Skip Forward clicked.")
+                        skip_forward_successful = True
+                        break
+                    else:
+                        print(f"[{folder}] ⚠️ Skip Forward button not found or not clickable (attempt {attempt+1}).")
+                        time.sleep(1)
+                if not skip_forward_successful:
+                    print(f"[{folder}] ❌ Could not click Skip Forward after 3 attempts.")
+            else:
+                print(f"[{folder}] ✅ Skip Forward already clicked, skipping skip forward block.")
 
             # --- NAS Submit Block ---
             summary[folder] = "✅ Success"
@@ -648,6 +674,15 @@ while True:
                     try:
                         driver.switch_to.window(main_spotify_tab)
                         print(f"[{folder}] 🔄 Switched to Spotify tab after NAS operations.")
+                        # --- Try skip forward again after NAS submit ---
+                        print(f"[{folder}] Attempting to click skip forward again after NAS submit...")
+                        for attempt in range(3):
+                            if try_click(driver, 'button[data-testid="control-button-skip-forward"]', label="Skip Forward button (post-NAS)"):
+                                print(f"[{folder}] ✅ Skip Forward clicked after NAS submit.")
+                                break
+                            else:
+                                print(f"[{folder}] ⚠️ Skip Forward button not found or not clickable after NAS submit (attempt {attempt+1}).")
+                                time.sleep(1)
                     except Exception as e:
                         print(f"[{folder}] ⚠️ Could not switch to Spotify tab: {e}")
             else:
