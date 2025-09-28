@@ -10,8 +10,8 @@ import time
 
 # === STATIC CONFIG ===
 brave_path = r"C:\Program Files\BraveSoftware\Brave-Browser\Application\brave.exe"
-chromedriver_path = r"C:\Automations\Chromedriver\chromedriver.exe"
-base_profile_dir = r"C:\Automations\Braves"
+chromedriver_path = r"D:\Automations\Chromedriver\chromedriver.exe"
+base_profile_dir = r"D:\Automations\Braves"
 
 # --- Add this new section for user input and playlist selection ---
 playlists = {
@@ -333,50 +333,8 @@ while True:
             time.sleep(3)  # Give a little extra time after successful load
 
             if not is_spotify_logged_in(driver):
-                print(f"[{folder}] 🔐 Spotify is NOT logged in. Initiating login process...")
-
-                login_initiated = False
-                for login_btn_try in range(max_page_load_attempts):
-                    if try_click(driver, 'button[data-testid="login-button"]', label="Spotify Top-Right Login Button"):
-                        print(f"[{folder}] ✅ Clicked Spotify 'Log in' button. Waiting for login page/modal...")
-                        time.sleep(3)  # Give it time to redirect or open a modal
-                        login_initiated = True
-                        break
-                    else:
-                        print(f"[{folder}] ❌ Spotify 'Log in' button not found (attempt {login_btn_try + 1}). Refreshing page to retry finding it...")
-                        driver.refresh()
-                        time.sleep(5)
-
-                if not login_initiated:
-                    print(f"[{folder}] ❌ Failed to find and click the Spotify 'Log in' button after {max_page_load_attempts} attempts. Cannot proceed with Spotify for this profile.")
-                    continue  # Move to next overall attempt
-
-                # --- Only Google Login Logic ---
-                print(f"[{folder}] Attempting to log in via Google.")
-                google_login_successful_this_try = False
-                for google_try in range(max_page_load_attempts):
-                    if try_click(driver, 'button[data-testid="google-login"]', label="Continue with Google Button"):
-                        print(f"[{folder}] ✅ Clicked 'Continue with Google' button. Waiting for Google authentication...")
-                        time.sleep(10)  # Give ample time for Google redirect/popup and authentication
-                        
-                        if is_spotify_logged_in(driver):
-                            print(f"[{folder}] ✅ Successfully logged into Spotify via Google.")
-                            google_login_successful_this_try = True
-                            break  # Exit google_try loop
-                        else:
-                            print(f"[{folder}] ❌ Spotify login via Google failed or did not complete after re-check (attempt {google_try + 1}). Current URL: {driver.current_url}. Refreshing to retry.")
-                            driver.save_screenshot(f"debug_spotify_google_login_failed_{folder}_{int(time.time())}_try{google_try}.png")  # Screenshot on failure
-                            driver.refresh()
-                            time.sleep(5)
-                    else:
-                        print(f"[{folder}] ❌ 'Continue with Google' button not found (attempt {google_try + 1}). Refreshing page to retry finding it.")
-                        driver.refresh()
-                        time.sleep(5)
-
-                if not google_login_successful_this_try:
-                    print(f"[{folder}] ❌ Failed to log into Spotify via Google after {max_page_load_attempts} attempts. Cannot proceed with Spotify for this profile.")
-                    continue  # Move to next overall attempt
-
+                print(f"[{folder}] 🔐 Spotify is NOT logged in. Skipping this profile.")
+                continue  # Move to next overall attempt
             else:
                 print("✅ Already logged into Spotify. Proceeding with playlist playback.")
             
