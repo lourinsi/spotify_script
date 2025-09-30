@@ -36,11 +36,11 @@ max_page_load_attempts = 3 # Number of attempts for critical page loads/interact
 
 # === PROFILES TO RUN ===
 profiles = [
-    # Profile 1: Only Google Login for Spotify
-    {"folder": "Profile 1", "email": "jamesjack2323g@gmail.com", "name": "James Jack", "spotify_password": None, "fb_password": None},
-    {"folder": "Profile 2", "email": "jamesonjcks@gmail.com", "name": "Jameson Jack", "spotify_password": None, "fb_password": None},
-    {"folder": "Profile 3", "email": "jamesyjacky@gmail.com", "name": "Jamesy Jack", "spotify_password": None, "fb_password": None},
-    {"folder": "Profile 4", "email": "jamjackthegoat@gmail.com ", "name": "Jam Jack", "spotify_password": None, "fb_password": None},
+    # Profile 1-4: Just need the browser profile folder
+    {"folder": "Profile 1"},
+    {"folder": "Profile 2"},
+    {"folder": "Profile 3"},
+    {"folder": "Profile 4"},
 ]
 
 summary = {}
@@ -181,7 +181,6 @@ while True:
     # --- Profile Processing ---
     for profile in profiles:
         folder = profile["folder"]
-        profile_email = profile["email"]
 
         print(f"\n=== 🚀 Processing {folder} ===")
         summary[folder] = "❌ Fail"
@@ -334,7 +333,8 @@ while True:
 
             if not is_spotify_logged_in(driver):
                 print(f"[{folder}] 🔐 Spotify is NOT logged in. Skipping this profile.")
-                continue  # Move to next overall attempt
+                summary[folder] = "⏭️ Skipped - Not logged in"
+                break  # Exit the overall attempt loop and move to next profile
             else:
                 print("✅ Already logged into Spotify. Proceeding with playlist playback.")
             
