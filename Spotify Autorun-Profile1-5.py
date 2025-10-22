@@ -8,6 +8,34 @@ from selenium.webdriver.support import expected_conditions as EC
 from selenium.webdriver import ActionChains
 import time
 
+def safe_get_url(driver, url, max_retries=3):
+    """Safely navigate to a URL with retries and error handling"""
+    for attempt in range(max_retries):
+        try:
+            driver.get(url)
+            return True
+        except Exception as e:
+            print(f"❌ Failed to navigate to {url} (attempt {attempt + 1}): {e}")
+            if attempt < max_retries - 1:
+                time.sleep(2)
+    return False
+
+def check_driver_alive(driver):
+    """Check if the driver is still responsive"""
+    try:
+        driver.current_url
+        return True
+    except Exception:
+        return False
+
+def safe_get_current_url(driver):
+    """Safely get current URL with error handling"""
+    try:
+        return driver.current_url
+    except Exception as e:
+        print(f"❌ Error getting current URL: {e}")
+        return ""
+
 # === STATIC CONFIG ===
 brave_path = r"C:\Program Files\BraveSoftware\Brave-Browser\Application\brave.exe"
 chromedriver_path = r"D:\Automations\Chromedriver\chromedriver.exe"
@@ -215,7 +243,80 @@ while True:
         # --- Handle tabs and switch to the correct ones ---
         main_spotify_tab = None
         nas_tab = None
+        tabs_to_keep = set()
         
+        try:
+            for handle in driver.window_handles:
+                try:
+                    driver.switch_to.window(handle)
+                    current_url = safe_get_current_url(driver)
+                    if current_url and ("open.spotify.com" in current_url or "play.spotify.com" in current_url):
+                        print(f"✅ Found existing Spotify tab.")
+                        main_spotify_tab = handle
+                        tabs_to_keep.add(handle)
+                    elif current_url and "spotifyfollow.a2hosted.com/nas" in current_url:
+                        print(f"✅ Found existing NAS tab.")
+                        nas_tab = handle
+                        tabs_to_keep.add(handle)
+                except Exception as e:
+                    print(f"⚠️ Error accessing tab {handle}: {e}")
+                    # If we can't access a tab, it might be crashed - skip it
+                    continue
+        except Exception as e:
+            print(f"❌ Browser connection lost for {folder}. Error: {e}")
+            print(f"🔄 Closing and restarting browser for {folder}...")
+            
+            # Remove the problematic driver from active_drivers
+            if folder in active_drivers:
+                try:
+                    active_drivers[folder].quit()
+                except:
+                    pass  # Ignore errors when quitting
+                del active_drivers[folder]
+            
+            # Restart the browser
+            print(f"🔄 Restarting Brave browser for {folder}...")
+            user_data_dir = f"{base_profile_dir}\\{folder}"
+            options = Options()
+            options.binary_location = brave_path
+            options.add_argument(f'--user-data-dir={user_data_dir}')
+            options.add_argument("--mute-audio")
+            options.add_argument("--start-maximized")
+            options.add_argument("--disable-dev-shm-usage")  # Helps with memory issues
+            options.add_argument("--no-sandbox")  # Helps with stability
+
+            try:
+                service = Service(chromedriver_path)
+                service.start()
+                driver = webdriver.Chrome(service=service, options=options)
+                active_drivers[folder] = driver
+                print(f"✅ Browser restarted successfully for {folder}")
+                # Reset tabs since we have a fresh browser
+                main_spotify_tab = None
+                nas_tab = None
+                tabs_to_keep = set()
+            except Exception as restart_error:
+                print(f"❌ Failed to restart browser for {folder}: {restart_error}")
+                summary[folder] = "❌ Browser Error"
+                continue  # Skip to next profile
+
+        # Close all unrelated tabs (with error handling)
+        try:
+            for handle in driver.window_handles[:]:
+                if handle not in tabs_to_keep:
+                    try:
+                        driver.switch_to.window(handle)
+                        current_url = safe_get_current_url(driver)
+                        print(f"❌ Closing unrelated tab: {current_url}")
+                        driver.close()
+                    except Exception as e:
+                        print(f"⚠️ Error closing tab: {e}")
+            # After closing, switch to a known good window
+            if driver.window_handles:
+                driver.switch_to.window(driver.window_handles[0])
+        except Exception as e:
+            print(f"⚠️ Error during tab cleanup: {e}")
+
         # New approach: Iterate through existing windows to find the tabs
         for handle in driver.window_handles:
             driver.switch_to.window(handle)
