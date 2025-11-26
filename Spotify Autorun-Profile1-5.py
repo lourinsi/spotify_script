@@ -43,13 +43,13 @@ base_profile_dir = r"D:\Automations\Braves"
 
 # --- Add this new section for user input and playlist selection ---
 playlists = {
-    '1': {"name": "NAS LEGENDS", "id": "0QmeNTNpmXCMYMnfUElIqb"},
-    '2': {"name": "NAS ELITE", "id": "7EYdQbtIwnVFUbIOOva0HI"},
-    '3': {"name": "NAS SUPERSTARS", "id": "0VU5Mk2VKp80eBK8iB7ROZ"},
-    '4': {"name": "NAS ALL-STARS", "id": "1agpv6FCGMrvhw27myRJ1s"},
-    '5': {"name": "NAS", "id": "7aJOhDOlQVCITOCnV7XWpZ"},
-    '6': {"name": "NAS PRO", "id": "5TCao2OVhZGrShZM2zsMLq"},
-    '7': {"name": "NAS 101", "id": "6pUo5Yekpi89jNpJ4hDcqz"},
+    '1': {"name": "Indie: NAS LEGENDS", "id": "0QmeNTNpmXCMYMnfUElIqb"},
+    '2': {"name": "Indie: NAS ELITE", "id": "7EYdQbtIwnVFUbIOOva0HI"},
+    '3': {"name": "Indie: NAS SUPERSTARS", "id": "0VU5Mk2VKp80eBK8iB7ROZ"},
+    '4': {"name": "Indie: NAS ALL-STARS", "id": "1agpv6FCGMrvhw27myRJ1s"},
+    '5': {"name": "Indie: NEW ARTIST SPOTLIGHT", "id": "7aJOhDOlQVCITOCnV7XWpZ"},
+    '6': {"name": "Indie: NAS PRO", "id": "5TCao2OVhZGrShZM2zsMLq"},
+    '7': {"name": "Indie: NAS 101", "id": "6pUo5Yekpi89jNpJ4hDcqz"},
     '0': {"name": "End Script", "id": None}
 }
 
